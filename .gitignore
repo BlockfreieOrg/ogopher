@@ -19,3 +19,15 @@ _build/
 # oasis generated files
 setup.data
 setup.log
+
+# pause
+AUTHORS.txt
+INSTALL.txt
+META
+README.txt
+_tags
+configure
+myocamlbuild.ml
+ogopher.mldylib
+ogopher.mllib
+setup.ml

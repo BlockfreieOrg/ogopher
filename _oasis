@@ -1,0 +1,31 @@
+OASISFormat: 0.4
+Name:        ogopher
+Version:     1.0
+Synopsis:    Yet another ocaml gopher package
+Authors:     Major Seitan
+License:     MIT
+Plugins:     META (0.4), StdFiles (0.4), DevFiles (0.4)
+
+Library ogopher
+  Path:         .
+  Findlibname:  ogopher
+  BuildTools:   ocamlbuild
+  Modules:      Ogopher
+  BuildDepends: threads, dbm (>= 1.0),core (>= 111.28.01),async (>= 111.25.00)
+  CompiledObject: byte
+
+Executable ogopher_server
+  Path:         .
+  BuildTools:   ocamlbuild
+  MainIs:       ogopher_server.ml
+  BuildDepends: threads, dbm (>= 1.0),core (>= 111.28.01),async (>= 111.25.00)
+  NativeOpt:    -ccopt -static -thread -linkpkg
+  CompiledObject: native
+
+Executable ogopher_loader
+  Path:          .
+  BuildTools:    ocamlbuild
+  MainIs:        ogopher_loader.ml
+  BuildDepends:  extlib (>= 1.7.0),dbm (>= 1.0),core (>= 111.28.01),async (>= 111.25.00), sexplib (>= 111.25.00),camlp4,magic-mime (>= 1.0.0)
+  CompiledObject: byte
+  ByteOpt:       -pp "camlp4of -I `ocamlfind query type_conv` -I `ocamlfind query sexplib` pa_type_conv.cma pa_sexp_conv.cma"
