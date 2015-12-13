@@ -1,0 +1,26 @@
+opam-version: "1.2"
+name: "ogopher"
+version: "1.0"
+maintainer: "Major Seitan <major.seitan@gmail.com>"
+authors: "Major Seitan <major.seitan@gmail.com>"
+homepage: "https://github.com/BlockfreieOrg/ogopher"
+bug-reports: "https://github.com/BlockfreieOrg/ogopher/issues"
+license: "MIT"
+dev-repo: "https://github.com/BlockfreieOrg/ogopher"
+build: [
+  ["./configure" "--prefix=%{prefix}%"]
+  [make]
+]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "ogopher"]
+depends: [
+  "async" { >= "111.25.00" }
+  "camlp4" { >= "4.01" }
+  "core" { >= "111.28.01" }
+  "dbm" { >= "1.0" }
+  "extlib" { >= "1.7.0" }
+  "magic-mime" { >= "1.0.0" }
+  "ocamlfind" {build}
+  "sexplib" { >= "111.25.00" }
+]
+available: [ocaml-version >= "4.01.0"]
