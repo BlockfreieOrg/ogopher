@@ -1,5 +1,7 @@
 #all: ogopher_server ogopher_loader
-all: ogopher.cma ogopher_server ogopher_loader
+all: build
+install: 
+build: ogopher.cma ogopher_server ogopher_loader
 # the debug flag is left on as this is usually for development
 ogopher.cma: ogopher.ml
 	ocamlfind ocamlc -c -g -thread -package dbm,core,async -linkpkg ogopher.ml
