@@ -31,3 +31,5 @@ myocamlbuild.ml
 ogopher.mldylib
 ogopher.mllib
 setup.ml
+ogopher_loader
+ogopher_server
