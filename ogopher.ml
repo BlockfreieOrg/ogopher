@@ -46,3 +46,7 @@ object(self)
                      | "/date"      -> self#date ()
                      | _            -> super#default s
 end;;
+
+let dbm_path = "gopher.db" in
+    Dbm.close (Dbm.opendbm dbm_path [Dbm.Dbm_rdwr; Dbm.Dbm_create] 0o666);
+    (new ogopher_hello_world 70 dbm_path)#run
