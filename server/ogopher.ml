@@ -1,6 +1,5 @@
 open Core.Std
 open Async.Std
-open Async.Std.Unix
 open Dbm
 open Printf
 
@@ -21,13 +20,14 @@ object (self)
     let host_and_port = Tcp.Server.create
       ~on_handler_error:`Raise
       (Tcp.on_port port)
-      (fun addr r w -> self#handle_request r w)
+      (fun _ r w -> self#handle_request r w)
     in ignore (host_and_port : (Socket.Address.Inet.t, int) Tcp.Server.t Deferred.t);
        Deferred.never ()
+  method get_db () = db
 end;;
 
 class ['a] ogopher_hello_world ~port ~dbm_path =
-object(self)
+object(*self*)
   inherit ['a] ogopher port dbm_path as super
   method default s = match s with
                      | _ -> "iHello World\terror.host\t1\n.\n"
@@ -39,7 +39,9 @@ object(self)
   method rand_bool () = string_of_bool (Random.bool ())
   method date () =
     let t = Unix.localtime (Unix.time ()) in
-    let (day, month, year) = (t.tm_mday, t.tm_mon, t.tm_year) in
+    let (day, month, year) = (t.Async.Std.Unix.tm_mday,
+                              t.Async.Std.Unix.tm_mon,
+                              t.Async.Std.Unix.tm_year) in
     sprintf "%04d-%02d-%02d" (1900 + year) (month + 1) day
   method default s = match s with
                      | "/rand_bool" -> self#rand_bool ()
@@ -48,5 +50,9 @@ object(self)
 end;;
 
 let dbm_path = "gopher.db" in
-    Dbm.close (Dbm.opendbm dbm_path [Dbm.Dbm_rdwr; Dbm.Dbm_create] 0o666);
+    Dbm.close
+      (Dbm.opendbm
+         dbm_path
+         [Dbm.Dbm_rdwr; Dbm.Dbm_create]
+         0o666);
     (new ogopher_hello_world 70 dbm_path)#run
