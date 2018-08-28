@@ -1,5 +1,5 @@
-open Core.Std
-open Async.Std
+open Async.Std;;
+
 open Core.Std;;
 open Sexplib.Conv;;
 open Sexplib.Sexp;;
@@ -9,56 +9,231 @@ open Magic_mime;;
 open Core_kernel.Std;;
 open ExtLib;;
 
+type file = { selector : string ;
+              label : string ;
+              path : string }
+          [@@deriving yojson];;
+
+type entry_type =
+    Text
+  | Directory
+  | CSO
+  | Error
+  | BinHex
+  | Archive
+  | UUEncoded
+  | Search
+  | Telnet
+  | Binary
+  | GIF
+  | HTML
+  | Information
+  | Image
+  | Audio
+  | TN3270
+  [@@deriving yojson];;
+
+let render_entry_type (e : entry_type) =
+  match e with
+  | Text -> "0"
+  | Directory -> "1"
+  | CSO -> "2"
+  | Error -> "3"
+  | BinHex -> "4"
+  | Archive -> "5"
+  | UUEncoded -> "6"
+  | Search -> "7"
+  | Telnet -> "8"
+  | Binary -> "9"
+  | GIF -> "g"
+  | HTML -> "h"
+  | Information -> "i"
+  | Image -> "g"
+  | Audio -> "s"
+  | TN3270 -> "T"
+
+type directory_entry =
+  { entry_type : entry_type ;
+    label : string ;
+    selector : string option ;
+    host : string option ;
+    port : int option }
+type reference =
+  { selector : string }
+  [@@deriving yojson];;
+
+type link =
+  { entry_type : entry_type ;
+    label : string ;
+    selector : string ;
+    host : string ;
+    port : int }
+    [@@deriving yojson];;
+
+type listing =
+  | Reference of reference
+  | Label of string
+  | Link of link
+  [@@deriving yojson];;
+
 type server = { host : string ;
                 port : int }
-                deriving (Yojson)
+                [@@deriving yojson];;
+type cache = { entry_type : entry_type ; label : string }
+type state = { server : server ; lookup : (string,cache) Hashtbl.t }
+type menu = { selector : string ;
+              label : string ;
+              listings : listing list }
+              [@@deriving yojson];;
+
+type resource =
+  | File of file
+  | Menu of menu
+  [@@deriving yojson];;
 
 type catalog = { server : server ;
-                 resources : unit }
-                deriving (Yojson)
+                 resources : resource list }
+                 [@@deriving yojson];;
 
-let load_json
-      (json_path : string)
-      (dbm_path : string) : unit =
-  let db = Dbm.opendbm
-             dbm_path
-             [Dbm.Dbm_rdwr; Dbm.Dbm_create]
-             0o666
-  in
+type content = { selector : string ;
+                 content : string }
+                 [@@deriving yojson];;
+
+let render_entry ({ entry_type = entry_type ;
+                    label = label ;
+                    selector = selector ;
+                    host = host ;
+                    port = port } : directory_entry) =
+  sprintf "%s%s\t%s\t%s\t%d\n"
+    (render_entry_type entry_type)
+    label
+    (match selector with | Some selector -> selector
+                         | None -> "fake")
+    (match host with | Some host -> host | None -> "(null)")
+    (match port with | Some port -> port | None -> 0 )
+
+let listing_entry
+      ({ server = { host = host ;
+                    port = port } ;
+         lookup = lookup } : state) (l : listing) : directory_entry =
+  match l with
+  | Reference { selector = selector } ->
+     let { entry_type = entry_type ;
+           label = label } = Hashtbl.find lookup selector in
+     { entry_type = entry_type ;
+       label = label ;
+       selector = Some selector ;
+       host = Some host ;
+       port = Some port }
+  | Label label ->
+     { entry_type = Information ;
+       label = label ;
+       selector = None ;
+       host = None ;
+       port = None }
+  | Link { entry_type = entry_type ;
+           label = label ;
+           selector = selector ;
+           host = host ;
+           port = port }
+    ->
+     { entry_type = entry_type ;
+       label = label ;
+       selector = Some selector ;
+       host = Some host ;
+       port = Some port }
+
+let rec render_menu
+          (s : state)
+          (l : listing list) =
+  match l with
+    h::t -> (render_entry (listing_entry s h)) ^ (render_menu s t)
+  | [] -> ".\n"
+
+let render_resource
+      ({ server = server ; lookup = lookup } : state)
+      (r : resource) =
+  match r with
+  |  File { selector = selector ; label = label ; path = path } ->
+     let mime = Magic_mime.lookup path in
+     let entry_type = match mime with
+       | _ when String.exists mime "uuencode"   -> UUEncoded
+       | _ when String.exists mime "html"       -> HTML
+       | _ when String.exists mime "gif"        -> GIF
+       | _ when String.exists mime "image"      -> Image
+       | _ when String.exists mime "audio"      -> Audio
+       | _ when String.exists mime "binary"     -> Binary
+       | _ when String.exists mime "binhex"     -> BinHex
+       | _ when String.exists mime "text"       -> Text
+       | _ -> raise (Failure (sprintf "unexpected mime type '%s'" mime))
+     in
+     Hashtbl.replace
+       lookup
+       selector
+       { entry_type = entry_type ; label = label };
+     { selector = selector ; content = In_channel.read_all path }
+  |  Menu { selector = selector ; label = label ; listings = listings } ->
+      Hashtbl.replace
+        lookup selector
+        { entry_type = Directory ; label = label };
+     { selector = selector ;
+       content = render_menu { server = server ; lookup = lookup } listings }
+;;
+
+let exn x = match x with
+    Result.Ok x -> x
+  | Result.Error err -> raise (Failure err)
+
+let load_scm (scm_path : string) (dbm_path : string) =
+  let db = Dbm.opendbm dbm_path [Dbm.Dbm_rdwr; Dbm.Dbm_create] 0o666 in
+  let yojson = Yojson.Safe.from_file scm_path |>
+                 catalog_of_yojson in
+  let { server = server ;
+        resources = resources } = exn yojson in
+  let state : state = { server = server ;
+                        lookup = Hashtbl.create (List.length resources) } in
+  let persist { selector = selector ; content = content } : unit =
+    Dbm.replace db selector content in
+  let persist_resource (r : resource) : unit = persist (render_resource state r) in
+  List.iter persist_resource resources;
   Dbm.close db
 ;;
 
-let check_load (dbm_path : string) : unit =
-  let db = Dbm.opendbm
-             dbm_path
-             [Dbm.Dbm_rdwr; Dbm.Dbm_create]
-             0o666
-  in
-  Dbm.iter
-    (fun key value -> print_string
-                        (sprintf "'%s'\n%s" key value))
-    db
-
-let json_error f = sprintf "json site description to load (default '%s')" f
-let dbm_error f = sprintf " DB path (default '%s')" f
+let check_load (dbm_path : string) =
+  let db = Dbm.opendbm dbm_path [Dbm.Dbm_rdwr; Dbm.Dbm_create] 0o666 in
+  Dbm.iter (fun key value -> print_string (sprintf "'%s'\n%s" key value)) db
 
 let () =
-  let default_json = "site/index.json" in
+  let default_scm = "site/index.json" in
   let default_dbm = "gopher.db" in
-  let json_error f = sprintf "json site description to load (default '%s')" f in
-  let dbm_error f = sprintf " DB path (default '%s')" f in
   Command.basic
-    ~summary:"load a gopher index from a json file"
+    ~summary:"Start an gopher server"
     Command.Spec.(empty
-                  +> flag
-                       "-json"
-                       (optional_with_default default_json string)
-                       ~doc:(json_error default_json)
-                  +> flag
-                       "-db"
-                       (optional_with_default default_dbm string)
-                       ~doc:(dbm_error default_dbm))
-    (fun json dbm () ->
-      load_json json dbm;
+                  +> flag "-scm" (optional_with_default default_scm string)
+                    ~doc:(sprintf " scm site description to load (default '%s')" default_scm)
+                  +> flag "-db" (optional_with_default default_dbm string)
+                    ~doc:(sprintf " DB path (default '%s')" default_dbm))
+    (fun scm dbm () ->
+      load_scm scm dbm;
       check_load dbm)
   |> Command.run
+
+(*
+type file = { selector : string ;
+              label : string ;
+              path : string } with sexp;;
+
+
+let sample : file = { selector = "selector1" ; label = "label1" ; path ="path0" };;
+
+
+let sample : catalog = { server = { host = "host0" ; port = 70 }
+                       ; resources = [File { selector = "selector1" ; label = "label1" ; path ="path0" }
+                                     ;Menu { selector = "selector1" ; label = "label1" ;
+                                             listings = [ Reference { selector = "url3" }
+                                                        ; Label "label1"
+                                                        ; Link { entry_type = Image ; label = "label2" ; selector = "url6" ; host = "host1" ; port = 71 }
+                                                        ]
+                       } ] };;
+let () = print_endline (Yojson.Safe.to_string (catalog_to_yojson sample));;
+ *)
