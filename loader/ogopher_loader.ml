@@ -194,7 +194,8 @@ let load_scm (scm_path : string) (dbm_path : string) =
                         lookup = Hashtbl.create (List.length resources) } in
   let persist { selector = selector ; content = content } : unit =
     Dbm.replace db selector content in
-  let persist_resource (r : resource) : unit = persist (render_resource state r) in
+  let persist_resource (r : resource) : unit = persist
+                                                 (render_resource state r) in
   List.iter persist_resource resources;
   Dbm.close db
 ;;
@@ -207,7 +208,7 @@ let () =
   let default_scm = "site/index.json" in
   let default_dbm = "gopher.db" in
   Command.basic
-    ~summary:"Start an gopher server"
+    ~summary:"Load gopher index"
     Command.Spec.(empty
                   +> flag "-scm" (optional_with_default default_scm string)
                     ~doc:(sprintf " scm site description to load (default '%s')" default_scm)
@@ -217,23 +218,4 @@ let () =
       load_scm scm dbm;
       check_load dbm)
   |> Command.run
-
-(*
-type file = { selector : string ;
-              label : string ;
-              path : string } with sexp;;
-
-
-let sample : file = { selector = "selector1" ; label = "label1" ; path ="path0" };;
-
-
-let sample : catalog = { server = { host = "host0" ; port = 70 }
-                       ; resources = [File { selector = "selector1" ; label = "label1" ; path ="path0" }
-                                     ;Menu { selector = "selector1" ; label = "label1" ;
-                                             listings = [ Reference { selector = "url3" }
-                                                        ; Label "label1"
-                                                        ; Link { entry_type = Image ; label = "label2" ; selector = "url6" ; host = "host1" ; port = 71 }
-                                                        ]
-                       } ] };;
-let () = print_endline (Yojson.Safe.to_string (catalog_to_yojson sample));;
- *)
+(* check history for test code*)

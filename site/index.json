@@ -3,7 +3,7 @@
       [ "File", { "selector": "/about",
 		  "label": "About",
 		  "path": "site/about.txt" } ],
-      [ "Menu", { "selector": "",
+      [ "Menu", { "selector": "/",
 		  "label": "Welcome to ogopher",
 		  "listings" : [ [ "Label" , "----------------------" ]
 			       , [ "Label" , "| welcome to ogopher |" ]

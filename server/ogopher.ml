@@ -21,7 +21,8 @@ object (self)
       ~on_handler_error:`Raise
       (Tcp.on_port port)
       (fun _ r w -> self#handle_request r w)
-    in ignore (host_and_port : (Socket.Address.Inet.t, int) Tcp.Server.t Deferred.t);
+    in ignore (host_and_port : (Socket.Address.Inet.t, int)
+                               Tcp.Server.t Deferred.t);
        Deferred.never ()
   method get_db () = db
 end;;
@@ -48,11 +49,3 @@ object(self)
                      | "/date"      -> self#date ()
                      | _            -> super#default s
 end;;
-
-let dbm_path = "gopher.db" in
-    Dbm.close
-      (Dbm.opendbm
-         dbm_path
-         [Dbm.Dbm_rdwr; Dbm.Dbm_create]
-         0o666);
-    (new ogopher_hello_world 70 dbm_path)#run
